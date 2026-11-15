@@ -14,10 +14,45 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Restore original app source
+      - name: Recover and restore original source archive
+        shell: bash
         run: |
-          base64 --decode .build/treinocasa-source.zip.b64 > /tmp/treinocasa-source.zip || true
-          unzip -oq /tmp/treinocasa-source.zip 'app/*' 'build.gradle' 'settings.gradle' -d .
+          python3 - <<'PY'
+          import base64, io, zipfile
+          from pathlib import Path
+          encoded = Path(".build/treinocasa-source.zip.b64").read_text().strip()
+          expected = 21648
+          if len(encoded) != expected:
+              excess = len(encoded) - expected
+              if excess < 1:
+                  raise SystemExit(f"Unexpected archive length: {len(encoded)}")
+              recovered = None
+              for start in range(len(encoded) - excess + 1):
+                  candidate = encoded[:start] + encoded[start + excess:]
+                  try:
+                      raw = base64.b64decode(candidate, validate=True)
+                      with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                          names = archive.namelist()
+                          if "app/src/main/assets/index.html" not in names:
+                              continue
+                          if archive.testzip() is not None:
+                              continue
+                      recovered = raw
+                      print(f"Recovered archive by removing corrupted overlap at offset {start}")
+                      break
+                  except (ValueError, zipfile.BadZipFile):
+                      continue
+              if recovered is None:
+                  raise SystemExit("Could not recover the original source archive")
+              raw = recovered
+          else:
+              raw = base64.b64decode(encoded, validate=True)
+          with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+              bad = archive.testzip()
+              if bad:
+                  raise SystemExit(f"Corrupt source file: {bad}")
+              archive.extractall(".")
+          PY
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
