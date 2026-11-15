@@ -40,7 +40,7 @@ jobs:
                       recovered = raw
                       print(f"Recovered archive by removing corrupted overlap at offset {start}")
                       break
-                  except (ValueError, zipfile.BadZipFile):
+                  except Exception:
                       continue
               if recovered is None:
                   raise SystemExit("Could not recover the original source archive")
