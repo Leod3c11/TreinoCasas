@@ -14,6 +14,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Restore original app source
+        run: |
+          base64 --decode .build/treinocasa-source.zip.b64 > /tmp/treinocasa-source.zip
+          unzip -oq /tmp/treinocasa-source.zip 'app/*' 'build.gradle' 'settings.gradle' -d .
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
